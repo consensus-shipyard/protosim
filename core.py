@@ -87,16 +87,6 @@ class NodeScope(Scope):
 node = ScopeDecorator(NodeScope)
 
 
-#class ForRoot(Generic[P]):
-#    pass
-
-
-#class RootProtocol(Protocol):
-#    pass
-
-
-
-
 @dataclass
 class Protocol(ABC):
     instance_id: InstanceId

@@ -11,3 +11,9 @@ from core import Protocol, NodeId
 class ConsistentBroadcast(Protocol, ABC):
     sender: NodeId
     value: Optional[str] = None
+
+
+@dataclass
+class BinaryConsensus(Protocol, ABC):
+    sender: NodeId
+    value: bool

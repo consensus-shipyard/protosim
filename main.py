@@ -1,17 +1,23 @@
 from injector import Module, Injector, singleton, multiprovider, ClassAssistedBuilder, provider, SingletonScope
 
 from core import EventQueue, Network, Node, Group, NodeId, NodeScope, InstanceId, Simulator, node, RootProtocol
-from protocols.implementations import EchoConsistentBroadcast
+from protocols.implementations import EchoConsistentBroadcast, BrachaBinaryConsensus
+from protocols.types import ConsistentBroadcast
 
 
 class SimpleModule(Module):
     def configure(self, binder):
         binder.bind(InstanceId, to=lambda: InstanceId(('root', 0)))
 
+    @provider
+    def provide_eb_for_bbc(
+            self, injector: Injector) -> ClassAssistedBuilder[ConsistentBroadcast]:
+        return injector.get(ClassAssistedBuilder[EchoConsistentBroadcast])
+
     @node
     @provider
-    def provide_for_root(self, eb: EchoConsistentBroadcast) -> RootProtocol:
-        return eb
+    def provide_for_root(self, root: BrachaBinaryConsensus) -> RootProtocol:
+        return root
 
     @node
     @singleton
