@@ -1,15 +1,20 @@
-from injector import Module, Injector, singleton, multiprovider, ClassAssistedBuilder, provider
+from injector import Module, Injector, singleton, multiprovider, ClassAssistedBuilder, provider, SingletonScope
 
-from core import EventQueue, Network, Node, Group, NodeId, NodeScope, node, Protocol, InstanceId, Simulator
-from protocols.implementations.broadcast import EchoConsistentBroadcast
+from core import EventQueue, Network, Node, Group, NodeId, NodeScope, InstanceId, Simulator, node, RootProtocol
+from protocols.implementations import EchoConsistentBroadcast
 
 
 class SimpleModule(Module):
     def configure(self, binder):
         binder.bind(InstanceId, to=lambda: InstanceId(('root', 0)))
-        binder.bind(Protocol, to=EchoConsistentBroadcast)
 
     @node
+    @provider
+    def provide_for_root(self, eb: EchoConsistentBroadcast) -> RootProtocol:
+        return eb
+
+    @node
+    @singleton
     @provider
     def provide_node_id(self, node_scope: NodeScope) -> NodeId:
         assert(node_scope.current_node_id is not None)
@@ -42,7 +47,7 @@ def main():
     print(group[1])
 
     simulator = injector.get(Simulator)
-    #simulator.run()
+    simulator.run()
 
 
 if __name__ == '__main__':

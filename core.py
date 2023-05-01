@@ -3,8 +3,9 @@ from __future__ import annotations
 import heapq
 import logging
 import random
+from abc import ABC
 from dataclasses import dataclass
-from typing import NewType, Optional
+from typing import NewType, Optional, TypeVar
 
 from injector import singleton, inject, Scope, Provider, InstanceProvider, ScopeDecorator
 
@@ -86,26 +87,18 @@ class NodeScope(Scope):
 node = ScopeDecorator(NodeScope)
 
 
-@node
-@inject
+#class ForRoot(Generic[P]):
+#    pass
+
+
+#class RootProtocol(Protocol):
+#    pass
+
+
+
+
 @dataclass
-class Node:
-    id: NodeId  # The id of the node.
-    #root_protocol: Protocol  # The root protocol of the node.
-    dispatcher: Dispatcher  # The dispatcher that will deliver messages to the node.
-
-    def start(self):
-        self.root_protocol.start()
-
-    # Delivers a message to the node for processing.
-    def deliver(self, msg: Message):
-        self.dispatcher.deliver(msg)
-
-
-@node
-@inject
-@dataclass
-class Protocol:
+class Protocol(ABC):
     instance_id: InstanceId
     node_id: NodeId
     network: Network
@@ -128,6 +121,26 @@ class Protocol:
     # Abstract method that should be overridden by subclasses.
     def deliver(self, msg: Message):
         raise NotImplementedError
+
+
+# Type alias for the root protocol of a node.
+RootProtocol = NewType('RootProtocol', Protocol)
+
+
+@node
+@inject
+@dataclass
+class Node:
+    id: NodeId  # The id of the node.
+    root_protocol: RootProtocol  # The root protocol of the node.
+    dispatcher: Dispatcher  # The dispatcher that will deliver messages to the node.
+
+    def start(self):
+        self.root_protocol.start()
+
+    # Delivers a message to the node for processing.
+    def deliver(self, msg: Message):
+        self.dispatcher.deliver(msg)
 
 
 @node
@@ -164,7 +177,8 @@ Group = NewType('Group', list[Node])
 @node
 class NodeId(int):
     pass
-#NodeId = NewType('NodeId', int)
+
+
 @singleton
 @inject
 @dataclass
