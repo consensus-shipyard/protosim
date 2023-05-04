@@ -15,5 +15,4 @@ class ConsistentBroadcast(Protocol, ABC):
 
 @dataclass
 class BinaryConsensus(Protocol, ABC):
-    sender: NodeId
     value: bool

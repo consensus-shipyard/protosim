@@ -5,9 +5,7 @@ import logging
 import random
 from abc import ABC
 from dataclasses import dataclass
-from typing import NewType, Optional, TypeVar
-
-from injector import singleton, inject, Scope, Provider, InstanceProvider, ScopeDecorator
+from typing import NewType
 
 
 @dataclass
@@ -17,7 +15,6 @@ class Event:
     message: Message  # The message that will be delivered to the node.
 
 
-@singleton
 @dataclass
 class EventQueue:
     clock: int = 0
@@ -25,6 +22,7 @@ class EventQueue:
     def __post_init__(self):
         self._events: list[tuple[int, Event]] = []
 
+    # TODO: rename these
     def push(self, event: Event):
         instant = self.clock + event.delay
         heapq.heappush(self._events, (instant, event))
@@ -48,8 +46,6 @@ class Message:
     sender: NodeId   # The id of the node that sent the message.
 
 
-@singleton
-@inject
 @dataclass
 class Network:
     event_queue: EventQueue
@@ -67,24 +63,24 @@ class Network:
         return random.choice([5, 50, 100])
 
 
-class NodeScope(Scope):
-    current_node_id: Optional[NodeId] = None
-    _node_context: dict[NodeId, dict[type, Provider]] = {}
-
-    def configure(self) -> None:
-        self._node_context = {}
-
-    def get(self, key, provider):
-        assert(self.current_node_id is not None)
-        context = self._node_context.setdefault(self.current_node_id, {})
-        return context.setdefault(key, InstanceProvider(provider.get(self.injector)))
-
-    def set_node(self, node_id: NodeId):
-        self.current_node_id = node_id
-
-
-# The @node decorator is used to mark a type with NodeScope
-node = ScopeDecorator(NodeScope)
+# class NodeScope(Scope):
+#     current_node_id: Optional[NodeId] = None
+#     _node_context: dict[NodeId, dict[type, Provider]] = {}
+#
+#     def configure(self) -> None:
+#         self._node_context = {}
+#
+#     def get(self, key, provider):
+#         assert(self.current_node_id is not None)
+#         context = self._node_context.setdefault(self.current_node_id, {})
+#         return context.setdefault(key, InstanceProvider(provider.get(self.injector)))
+#
+#     def set_node(self, node_id: NodeId):
+#         self.current_node_id = node_id
+#
+#
+# # The @node decorator is used to mark a type with NodeScope
+# node = ScopeDecorator(NodeScope)
 
 
 @dataclass
@@ -113,16 +109,10 @@ class Protocol(ABC):
         raise NotImplementedError
 
 
-# Type alias for the root protocol of a node.
-RootProtocol = NewType('RootProtocol', Protocol)
-
-
-@node
-@inject
 @dataclass
 class Node:
     id: NodeId  # The id of the node.
-    root_protocol: RootProtocol  # The root protocol of the node.
+    root_protocol: Protocol  # The root protocol of the node.
     dispatcher: Dispatcher  # The dispatcher that will deliver messages to the node.
 
     def start(self):
@@ -133,8 +123,6 @@ class Node:
         self.dispatcher.deliver(msg)
 
 
-@node
-@inject
 @dataclass
 class Dispatcher:
     node_id: NodeId
@@ -164,13 +152,10 @@ class Dispatcher:
 Group = NewType('Group', list[Node])
 
 
-@node
 class NodeId(int):
     pass
 
 
-@singleton
-@inject
 @dataclass
 class Simulator:
     nodes: Group
