@@ -5,7 +5,7 @@ import logging
 import random
 from abc import ABC
 from dataclasses import dataclass
-from typing import NewType
+from typing import NewType, Annotated
 
 
 @dataclass
@@ -63,26 +63,6 @@ class Network:
         return random.choice([5, 50, 100])
 
 
-# class NodeScope(Scope):
-#     current_node_id: Optional[NodeId] = None
-#     _node_context: dict[NodeId, dict[type, Provider]] = {}
-#
-#     def configure(self) -> None:
-#         self._node_context = {}
-#
-#     def get(self, key, provider):
-#         assert(self.current_node_id is not None)
-#         context = self._node_context.setdefault(self.current_node_id, {})
-#         return context.setdefault(key, InstanceProvider(provider.get(self.injector)))
-#
-#     def set_node(self, node_id: NodeId):
-#         self.current_node_id = node_id
-#
-#
-# # The @node decorator is used to mark a type with NodeScope
-# node = ScopeDecorator(NodeScope)
-
-
 @dataclass
 class Protocol(ABC):
     instance_id: InstanceId
@@ -112,7 +92,7 @@ class Protocol(ABC):
 @dataclass
 class Node:
     id: NodeId  # The id of the node.
-    root_protocol: Protocol  # The root protocol of the node.
+    root_protocol: Annotated[Protocol, 'root']  # The root protocol of the node.
     dispatcher: Dispatcher  # The dispatcher that will deliver messages to the node.
 
     def start(self):
