@@ -1,28 +1,10 @@
 import inspect
 from dataclasses import dataclass
-from enum import Enum, auto
 import logging
-from typing import TypeVar, Generic, Any, Optional, Callable, Type, get_type_hints
+from typing import Any, Optional, Callable, Type, get_type_hints
 
 from core import NodeId
-
-
-class Scope(Enum):
-    NODE = auto()
-    SINGLETON = auto()
-    UNSCOPED = auto()
-
-
-T = TypeVar("T")
-
-
-@dataclass
-class Factory(Generic[T]):
-    constructor: Callable[..., T]
-    default_args: dict[str, Any]
-
-    def create(self, **kwargs):
-        return self.constructor(**(self.default_args | kwargs))
+from injection import Factory, Scope
 
 
 # A sentinel type to detect whether an instance is supplied.
@@ -109,7 +91,6 @@ class Injector:
         # Resolve the constructor's parameters
         constructor_arguments = {}
         for parameter in signature.parameters.values():
-            print(parameter.annotation, type(parameter.annotation))
             if parameter.annotation is inspect.Parameter.empty:
                 raise Exception(
                     f"Cannot construct an object with an unannotated parameter: {parameter.name}")
@@ -119,8 +100,6 @@ class Injector:
             if type(parameter_type) is str:
                 parameter_type = \
                     get_type_hints(constructor, include_extras=True)[parameter.name]
-                print(parameter.name, parameter_type)
-            print()
 
             # We can only inject parameters that have a binding or a default value
             if strict and parameter_type not in self._bindings_by_type and parameter.default is inspect.Parameter.empty:
@@ -164,8 +143,7 @@ class Injector:
 
     def get(self, object_type: Type) -> Any:
         logging.debug(f"Calling Injector#get for object type {object_type}")
-        if hasattr(object_type,
-                   '__origin__') and object_type.__origin__ is Factory:
+        if hasattr(object_type, '__origin__') and object_type.__origin__ is Factory:
             underlying_type = object_type.__args__[0]
             constructor = self._resolve_constructor(underlying_type)
             factory = self._construct_factory(constructor)

@@ -4,8 +4,9 @@ import unittest
 from typing import Annotated
 
 from core import EventQueue, Network, NodeId, Dispatcher, Node, Protocol, InstanceId, Group, Simulator
-from injector import Injector, Scope, Factory
-from protocols.implementations import EchoConsistentBroadcast
+from injection.injector import Injector
+from injection import Factory, Scope
+from protocols.implementations import BroadcastPing
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -15,13 +16,19 @@ class A:
     pass
 
 
-def provide_group(injector: Injector, group_size: Annotated[int, 'group_size']) -> Group:
-    group = Group([])
-    for i in range(group_size):
-        injector.enter_node_scope(NodeId(i))
-        group.append(injector.get(Node))
+# Constructor for the Group of Nodes.
+def build_nodes(injector: Injector, group: Group) -> list[Node]:
+    nodes = []
+    for node_id in group:
+        injector.enter_node_scope(node_id)
+        nodes.append(injector.get(Node))
         injector.exit_node_scope()
-    return group
+    return nodes
+
+
+# Constructor for the Group (list of NodeIds).
+def provide_node_ids(group_size: Annotated[int, 'group_size']) -> Group:
+    return Group([NodeId(i) for i in range(group_size)])
 
 
 class TestInjector(unittest.TestCase):
@@ -36,10 +43,12 @@ class TestInjector(unittest.TestCase):
         injector.provide(Dispatcher, scope=Scope.NODE)
 
         injector.supply(InstanceId, instance=InstanceId(("root", 0)))
-        injector.provide(Annotated[Protocol, 'root'], constructor=EchoConsistentBroadcast, scope=Scope.NODE)
+        injector.supply(Annotated[NodeId, 'pinger'], NodeId(0))
+        injector.provide(Annotated[Protocol, 'root'], constructor=BroadcastPing, scope=Scope.NODE)
 
         injector.supply(Annotated[int, 'group_size'], 2)
-        injector.provide(Group, constructor=provide_group, scope=Scope.SINGLETON)
+        injector.provide(Group, constructor=provide_node_ids, scope=Scope.SINGLETON)
+        injector.provide(list[Node], constructor=build_nodes, scope=Scope.SINGLETON)
 
         injector.provide(Simulator, constructor=Simulator, scope=Scope.SINGLETON)
 
@@ -48,8 +57,6 @@ class TestInjector(unittest.TestCase):
 
         simulator = injector.get(Simulator)
         self.assertIs(simulator, injector.get(Simulator))
-        print("=====================================")
-        print(simulator)
         simulator.run()
 
     def test_provide_unscoped(self):

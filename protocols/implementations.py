@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+from typing import Annotated
 
-from core import Message, NodeId, Network, Dispatcher, InstanceId
+from core import Message, NodeId, Network, Dispatcher, InstanceId, Protocol, Path, Group, PathSegment
 from protocols.types import ConsistentBroadcast, BinaryConsensus
 
 
@@ -43,3 +45,23 @@ class BrachaBinaryConsensus(BinaryConsensus):
     def deliver(self, msg: Message):
         pass
 
+
+@dataclass
+class BroadcastPing(Protocol):
+    group: Group
+    pinger: Annotated[NodeId, 'pinger']
+
+    def start(self):
+        if self.node_id == self.pinger:
+            self.subscribe(self.path.append(name="pong"), self.deliver_pong)
+            # TODO: this construction is too low-level. Abstract details from the protocol implementer.
+            self.broadcast(Message(path=self.path.append(name="ping"), sender=self.node_id, payload="ping"), destination=self.group)
+        else:
+            self.subscribe(self.path.append(name="ping"), self.deliver_ping)
+
+    def deliver_ping(self, msg: Message):
+        logging.info(f"Node {self.node_id} received ping from {msg.sender}")
+        self.send(Message(path=self.path.append(name="pong"), sender=self.node_id, payload="pong"), destination=msg.sender)
+
+    def deliver_pong(self, msg: Message):
+        logging.info(f"Node {self.node_id} received pong from {msg.sender}")

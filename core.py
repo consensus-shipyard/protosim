@@ -5,7 +5,8 @@ import logging
 import random
 from abc import ABC
 from dataclasses import dataclass
-from typing import NewType, Annotated
+from types import SimpleNamespace
+from typing import NewType, Annotated, Any, Optional, Callable
 
 
 @dataclass
@@ -13,6 +14,9 @@ class Event:
     delay: int  # The delay relative to the current instant with which the event will be processed.
     node_id: NodeId  # The id of the node that will process the event.
     message: Message  # The message that will be delivered to the node.
+
+    def __lt__(self, other: Event):
+        return self.node_id < other.node_id
 
 
 @dataclass
@@ -36,14 +40,26 @@ class EventQueue:
         return len(self._events)
 
 
-InstanceId = NewType('InstanceId', tuple[str, int])
-Path = NewType('Path', tuple[InstanceId, ...])
+class PathSegment(SimpleNamespace):
+    def __hash__(self):
+        return hash(tuple(self.__dict__.values()))
+
+
+class Path(tuple[PathSegment, ...]):
+    def append(self, segment: Optional[PathSegment] = None, **kwargs) -> Path:
+        segment = PathSegment(**segment.__dict__, **kwargs) if segment else PathSegment(**kwargs)
+        return Path(self + (segment,))
+
+
+class InstanceId(PathSegment):
+    pass
 
 
 @dataclass
 class Message:
     path: Path
     sender: NodeId   # The id of the node that sent the message.
+    payload: Any = None  # The payload of the message.
 
 
 @dataclass
@@ -63,16 +79,21 @@ class Network:
         return random.choice([5, 50, 100])
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Protocol(ABC):
     instance_id: InstanceId
     node_id: NodeId
     network: Network
     dispatcher: Dispatcher
-    # parent: Optional[Protocol] = None
+    parent: Optional[Protocol] = None
+    path: Optional[Path] = None
 
-    def subscribe(self, path: Path):
-        self.dispatcher.subscribe(path, self)
+    def __post_init__(self):
+        parent_path = self.parent.path if self.parent else Path()
+        self.path = parent_path.append(self.instance_id)
+
+    def subscribe(self, path: Path, callback: Callable[[Message], None]):
+        self.dispatcher.subscribe(path, callback)
 
     def send(self, msg: Message, destination: NodeId):
         self.network.send(msg, destination)
@@ -82,10 +103,6 @@ class Protocol(ABC):
 
     # Method that is executed when the protocol is started.
     def start(self):
-        raise NotImplementedError
-
-    # Abstract method that should be overridden by subclasses.
-    def deliver(self, msg: Message):
         raise NotImplementedError
 
 
@@ -108,43 +125,47 @@ class Dispatcher:
     node_id: NodeId
 
     def __post_init__(self):
-        self._subscriptions: dict[Path, Protocol] = {}
+        self._subscriptions: dict[Path, Callable[[Message], None]] = {}
         self._backlog: dict[Path, list[Message]] = {}
 
     # Delivers a message to the node for processing.
     def deliver(self, msg: Message):
         if msg.path in self._subscriptions:
-            self._subscriptions[msg.path].deliver(msg)
+            self._subscriptions[msg.path](msg)
         else:
             self._backlog.setdefault(msg.path, []).append(msg)
             logging.warning(f"Node {self.node_id} does not have a subscription for path {msg.path}")
 
-    def subscribe(self, path: Path, protocol: Protocol):
+    def subscribe(self, path: Path, callback: Callable[[Message], None]):
         if path in self._subscriptions:
             raise ValueError(f"Node {self.node_id} already has a subscription for path {path}")
-        self._subscriptions[path] = protocol
+        self._subscriptions[path] = callback
         if path in self._backlog:
             for msg in self._backlog[path]:
                 self.deliver(msg)
             del self._backlog[path]
 
 
-Group = NewType('Group', list[Node])
-
-
 class NodeId(int):
     pass
 
 
+Group = NewType('Group', list[NodeId])
+
+
 @dataclass
 class Simulator:
-    nodes: Group
+    nodes: list[Node]
     event_queue: EventQueue
     network: Network
 
     # Runs the simulation until there are no more events to execute.
     def run(self):
         logging.info("Starting simulation")
+
+        for node in self.nodes:
+            node.start()
+
         while self.event_queue:
             logging.debug(f"There are {len(self.event_queue)} event(s) in the queue")
             event = self.event_queue.pop()
