@@ -53,7 +53,7 @@ def main():
     injector_modules = [MainModule]
     for module_name in args.modules:
         mod = importlib.import_module(f"modules.{module_name}")
-        injector_modules += [module_cls[1] for module_cls in inspect.getmembers(mod, is_injector_module)]
+        injector_modules += [cls for (name, cls) in inspect.getmembers(mod, is_injector_module)]
 
     logging.info(f"Installing modules: {[m.__name__ for m in injector_modules]}")
 
