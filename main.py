@@ -44,7 +44,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("modules", nargs='+', type=str, help="whitespace-separated list of modules")
-    parser.add_argument("-g", "--group-size", type=int, default=4, help="number of nodes in the group")
+    parser.add_argument("-g", "--group_size", type=int, default=4, help="number of nodes in the group")
     args = parser.parse_args()
 
     def is_injector_module(obj):
