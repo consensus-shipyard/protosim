@@ -1,2 +1,2 @@
-# simple
-A discrete-event simulator for distributed algorithms
+# protosim
+A discrete-event simulator for distributed protocols and algorithms.
