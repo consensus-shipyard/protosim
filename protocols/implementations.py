@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import Annotated
 
-from core import Message, NodeId, Network, Dispatcher, InstanceId, Protocol, Path, Group, PathSegment
+from core import Message, NodeId, Network, Dispatcher, InstanceId, Protocol, Path, Group, PathSegment, EventQueue
 from protocols.types import ConsistentBroadcast, BinaryConsensus
 
 
@@ -50,6 +50,7 @@ class BrachaBinaryConsensus(BinaryConsensus):
 class BroadcastPing(Protocol):
     group: Group
     pinger: Annotated[NodeId, 'pinger']
+    event_queue: EventQueue
 
     def start(self):
         if self.node_id == self.pinger:
@@ -60,8 +61,8 @@ class BroadcastPing(Protocol):
             self.subscribe(self.path.append(name="ping"), self.deliver_ping)
 
     def deliver_ping(self, msg: Message):
-        logging.info(f"Node {self.node_id} received ping from {msg.sender}")
+        logging.info(f"Node {self.node_id} received ping from {msg.sender} at {self.event_queue.clock} ms")
         self.send(Message(path=self.path.append(name="pong"), sender=self.node_id, payload="pong"), destination=msg.sender)
 
     def deliver_pong(self, msg: Message):
-        logging.info(f"Node {self.node_id} received pong from {msg.sender}")
+        logging.info(f"Node {self.node_id} received pong from {msg.sender} at {self.event_queue.clock} ms")

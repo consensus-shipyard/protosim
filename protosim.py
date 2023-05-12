@@ -4,7 +4,7 @@ import inspect
 import logging
 from typing import Annotated
 
-from core import EventQueue, Network, Dispatcher, NodeId, Node, Simulator, Group
+from core import EventQueue, Network, Dispatcher, NodeId, Node, Simulator, Group, LatencyModel, GeoLatencyModel
 from injection import Injector, Scope
 from injection.injector import AbstractModule
 
@@ -28,6 +28,7 @@ class MainModule(AbstractModule):
     # Module configuration.
     def configure(self, injector: Injector):
         injector.provide(EventQueue, scope=Scope.SINGLETON)
+        injector.provide(LatencyModel, GeoLatencyModel, scope=Scope.SINGLETON)
         injector.provide(Network, scope=Scope.SINGLETON)
         injector.provide(Dispatcher, scope=Scope.NODE)
 

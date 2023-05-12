@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import heapq
+import json
 import logging
 import random
-from abc import ABC
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import NewType, Annotated, Any, Optional, Callable
+
+import geopy.distance
 
 
 @dataclass
@@ -32,8 +35,8 @@ class EventQueue:
         heapq.heappush(self._events, (instant, event))
 
     def pop(self) -> Event:
-        (delay, event) = heapq.heappop(self._events)
-        self.clock += delay
+        (instant, event) = heapq.heappop(self._events)
+        self.clock = instant
         return event
 
     def __len__(self) -> int:
@@ -65,18 +68,15 @@ class Message:
 @dataclass
 class Network:
     event_queue: EventQueue
+    latency_model: LatencyModel
 
     def send(self, msg: Message, dst_node_id: NodeId):
-        delay = self._latency()
+        delay = self.latency_model.get_latency(msg.sender, dst_node_id)
         self.event_queue.push(Event(delay, dst_node_id, msg))
 
     def broadcast(self, msg: Message, dst_node_ids: list[NodeId]):
         for node_id in dst_node_ids:
             self.send(msg, node_id)
-
-    @staticmethod
-    def _latency():
-        return random.choice([5, 50, 100])
 
 
 @dataclass(kw_only=True)
@@ -171,3 +171,46 @@ class Simulator:
             event = self.event_queue.pop()
             logging.debug(f"Node {event.node_id} processing message {event.message} at instant {self.event_queue.clock}")
             self.nodes[event.node_id].deliver(event.message)
+
+
+class LatencyModel(ABC):
+    @abstractmethod
+    def get_latency(self, src: NodeId, dst: NodeId) -> int:
+        pass
+
+
+@dataclass
+class GeoLatencyModel(LatencyModel):
+    group: Group
+    geo_data_file_path: str = "resources/lotus_geo_20231105.json"
+
+    def __post_init__(self):
+        with open(self.geo_data_file_path) as f:
+            data = json.load(f)
+            # The geographical locations of the population.
+            population = [
+                SimpleNamespace(
+                    latitude=float(peer['latitude']),
+                    longitude=float(peer['longitude']),
+                    city=peer['city'],
+                    country=peer['country'],
+                ) for peer in data
+            ]
+            self._node_locations = {}
+            for node_id in self.group:
+                loc = random.choice(population)
+                self._node_locations[node_id] = loc
+                logging.info(f"Node {node_id} is located in {loc.city}, {loc.country}")
+
+    def get_location(self, node_id: NodeId):
+        return self._node_locations[node_id]
+
+    def get_distance(self, src: NodeId, dst: NodeId) -> float:
+        src_loc = self._node_locations[src].latitude, self._node_locations[src].longitude
+        dst_loc = self._node_locations[dst].latitude, self._node_locations[dst].longitude
+        return geopy.distance.distance(src_loc, dst_loc).km
+
+    # Returns the latency in ms
+    # 1.5 ms per 200 km
+    def get_latency(self, src: NodeId, dst: NodeId) -> float:
+        return self.get_distance(src, dst) / 200 * 1.5
